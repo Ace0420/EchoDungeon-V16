@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Echo Dungeon V15 - Return to Fun</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+        }
+        #micButton {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #222;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        #micButton:active {
+            background: #444;
+        }
+        .listening {
+            background: #004400 !important;
+        }
+        .start-button {
+            background: #000044 !important;
+        }
+        #textDisplay {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="textDisplay" role="status" aria-live="polite"></div>
+    <button id="micButton" class="start-button" onclick="handleClick()" aria-label="Voice command button - Tap to speak"></button>
+
+    <!-- ============================================================
+         ECHO DUNGEON V15 - MULTI-FILE EDITION
+         BLIND FIRST. ALWAYS.
+
+         LOAD ORDER IS CRITICAL. The numbers ARE the load order.
+         All files share one global scope - no modules, no imports.
+         Filenames must stay exactly lowercase (GitHub Pages is
+         case-sensitive: voice.js and Voice.js are different files).
+         ============================================================ -->
+    <script src="js/01-core.js"></script>
+    <script src="js/02-speech.js"></script>
+    <script src="js/03-dungeon.js"></script>
+    <script src="js/04-combat.js"></script>
+    <script src="js/05-merchant.js"></script>
+    <script src="js/06-saveload.js"></script>
+    <script src="js/07-main.js"></script>
+</body>
+</html>
