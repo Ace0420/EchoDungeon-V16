@@ -313,6 +313,9 @@
                 listInventory();
             } else if (cmd.includes('remove ring') || cmd.includes('unequip ring')) {
                 removeRing(cmd);
+            } else if (cmd.includes('shrine') || cmd.includes('pray') || cmd.includes('blessing')) {
+                useShrine();
+            } else if (cmd.includes('potion') || cmd.includes('use') || cmd.includes('drink') || cmd.includes('heal')) {
             } else if (cmd.includes('potion') || cmd.includes('use') || cmd.includes('drink') || cmd.includes('heal')) {
                 processPotionCommand(cmd);
             } else if (cmd.includes('north') || cmd.includes('forward')) {
