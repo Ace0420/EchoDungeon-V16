@@ -1,5 +1,5 @@
                 // ============================================================
-        // ECHO DUNGEON V15 - PART 2 (FIXED SPEECH RECOGNITION)
+        // ECHO DUNGEON V16 - PART 2 (FIXED SPEECH RECOGNITION)
         // Merchant Items, Speech Systems, Character Creation
         // ============================================================
 

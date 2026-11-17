@@ -1,6 +1,6 @@
         // ============================================================
                 // ============================================================
-        // ECHO DUNGEON V15 - PART 7 (CORRECTED)
+        // ECHO DUNGEON V16 - PART 7 (CORRECTED)
         // New Potions, V10.5 Event System, Proper Closing
         // ============================================================
 
@@ -106,7 +106,7 @@
                 game.needsGender = true;
                 micButton.classList.remove('start-button');
                 speakSequence([
-                    'Welcome to Echo Dungeon V-15!',
+                    'Welcome to Echo Dungeon V-16!',
                     'Let us create your hero!',
                     'First, what is your gender? Say male, or female.'
                 ]);
@@ -123,7 +123,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             checkBrowserSupport();
             setTimeout(() => {
-                speak('Echo Dungeon V15 is ready. Tap the screen to begin.');
+                speak('Echo Dungeon V16 is ready. Tap the screen to begin.');
             }, 1000);
         });
 
