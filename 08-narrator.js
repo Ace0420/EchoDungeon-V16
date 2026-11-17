@@ -8,9 +8,14 @@
 // WHAT IT DOES
 // - Adds the voice commands: narrator on, narrator off,
 //   narrator status.
-// - When on, a small language model adds one sentence of sound,
-//   smell and touch to each room. It writes them ahead of the
-//   player, so nobody waits for it.
+// - The narrator is a dry, teasing smart aleck who is secretly
+//   fond of the hero.
+// - When on, a small language model writes one line about each
+//   calm room, ahead of the player, so nobody waits for it.
+// - Until the model has a line ready, the narrator uses lines
+//   written by hand (Section 7), so no calm room is left bare.
+// - The narrator also remarks on fights, victories, level ups,
+//   chests and defeats. Those remarks are all written by hand.
 // - If anything goes wrong, the game carries on with its usual
 //   lines. The narrator can never stop the game.
 //
@@ -42,8 +47,8 @@
         wasmSingle: WLLAMA_BASE + 'single-thread/wllama.wasm',
         wasmMulti: WLLAMA_BASE + 'multi-thread/wllama.wasm',
         contextSize: 1024,
-        maxTokens: 40,
-        triesPerRoom: 2,
+        maxTokens: 48,
+        triesPerRoom: 3,
         storageKey: 'echoDungeon_narrator'
     };
 
@@ -76,6 +81,9 @@
         pendingNotice: '',
         awaitingConfirm: false,
         bootChecked: false,
+        written: 0,
+        discarded: 0,
+        lastRoom: null,
         lastError: ''
     };
     window.EchoNarrator = narrator;
@@ -122,6 +130,7 @@
         narrator.enabled = true;
         narrator.progress = 0;
         narrator.lastError = '';
+        narrator.lastRoom = null;
 
         var loadLibrary;
         try {
@@ -156,7 +165,7 @@
             }
             narrator.state = 'ready';
             writePreference('on');
-            narrator.pendingNotice = 'Good news! The narrator is awake, and will add detail to the rooms ahead.';
+            narrator.pendingNotice = 'The narrator is fully awake now. Try to contain your excitement.';
             queueNearbyRooms();
         }).catch(function (err) {
             narrator.lastError = String((err && err.message) || err);
@@ -209,7 +218,7 @@
             return;
         }
         narrator.awaitingConfirm = false;
-        speak('Wonderful! The narrator is getting ready. You can keep playing, and I will let you know when the narrator is awake.');
+        speak('Wonderful! The narrator is waking up. Keep playing. You will hear a few remarks already, and more once the narrator is fully awake.');
         startLoading();
     }
 
@@ -243,7 +252,8 @@
         if (narrator.awaitingConfirm) {
             speak('The narrator is waiting for your answer. Say narrator yes to begin the download, or narrator off to cancel.');
         } else if (narrator.state === 'ready') {
-            speak('The narrator is awake and describing rooms for you.');
+            speak('The narrator is awake. So far the narrator has written ' + narrator.written +
+                  ' room lines and thrown away ' + narrator.discarded + '.');
         } else if (narrator.state === 'loading') {
             speak('The narrator is getting ready. ' + progressSpoken());
         } else if (narrator.state === 'failed') {
@@ -286,23 +296,23 @@
     // ------------------------------------------------------------
 
     var SYSTEM_PROMPT =
-        'You narrate an audio game played by blind adventurers in a fantasy dungeon. ' +
-        'For each room, reply with exactly one short sentence about what is heard, smelled or felt there. ' +
-        'Never mention directions, doors, treasure, monsters or what anything looks like.';
+        'You are the narrator of an audio dungeon game: a dry, teasing smart aleck who is secretly fond of the hero. ' +
+        'For each room, reply with exactly one short sentence about what is heard, smelled or felt there, with a wry remark. ' +
+        'Never mention directions, doors, treasure or monsters.';
 
     var EXAMPLES = [
-        ['Room: a dusty library. Mood: still.',
-         'Dry paper crackles underfoot and the air tastes of old ink and candle wax.'],
+        ['Room: an empty stone chamber. Mood: damp.',
+         'Something drips with real commitment in here, and the air smells like a wet sock that gave up.'],
         ['Room: a magical fountain room. Mood: cool.',
-         'Water chimes softly against stone and a cool mist settles on your skin.'],
-        ['Room: a burial crypt. Mood: cold.',
-         'The air is cold and heavy, and every footstep comes back as a slow echo.']
+         'Water burbles away smugly, and a cool mist settles on your skin whether you asked or not.'],
+        ['Room: an ancient shrine. Mood: still.',
+         'Old incense hangs in the air, and the silence feels like it is judging your life choices.']
     ];
 
     var MOODS = ['still', 'cold', 'damp', 'echoing', 'dusty', 'warm', 'drafty', 'quiet', 'musty', 'humming'];
 
     // Words that would give false information about the game, plus signs the model went off script.
-    var BLOCKED = /\b(chests?|gold|golden|coins?|treasures?|potions?|keys?|doors?|doorways?|stairs?|staircases?|exits?|monsters?|enem(y|ies)|creatures?|beasts?|goblins?|dragons?|north|south|east|west|left|right|ahead|behind|see|sees|seen|sight|looks?|colou?rs?|sorry|cannot|assistant|sentence)\b/i;
+    var BLOCKED = /\b(chests?|gold|golden|coins?|treasures?|potions?|keys?|doors?|doorways?|stairs?|staircases?|exits?|monsters?|enem(y|ies)|creatures?|beasts?|goblins?|dragons?|north|south|east|west|left|right|ahead|behind|sorry|cannot|assistant|sentence)\b/i;
 
     // This build stores a room as a type and its content, so name the place from those.
     function roomLabel(room) {
@@ -350,13 +360,14 @@
         }).then(cleanFlavor);
     }
 
-    // Line up this room and the four rooms next to it.
+    // Line up this room, the four rooms next to it, then the rooms two steps away.
     function queueNearbyRooms() {
         if (narrator.state !== 'ready') return;
         if (!game.dungeon || !game.dungeon.grid || !game.player || !game.player.position) return;
         var x = game.player.position.x;
         var y = game.player.position.y;
-        var spots = [[0, 0], [0, -1], [0, 1], [1, 0], [-1, 0]];
+        var spots = [[0, 0], [0, -1], [0, 1], [1, 0], [-1, 0],
+                     [0, -2], [0, 2], [2, 0], [-2, 0], [1, -1], [1, 1], [-1, -1], [-1, 1]];
         narrator.queue = [];
         for (var i = 0; i < spots.length; i++) {
             var room = game.dungeon.grid[(x + spots[i][0]) + ',' + (y + spots[i][1])];
@@ -382,9 +393,11 @@
         }
         attempt.then(function (text) {
             if (text) {
-                room.flavor = text;
+                if (!room.flavor) room.flavor = text;
+                narrator.written++;
             } else {
                 room.flavorTried = (room.flavorTried || 0) + 1;
+                narrator.discarded++;
             }
         }).catch(function (err) {
             room.flavorTried = (room.flavorTried || 0) + 1;
@@ -397,17 +410,174 @@
     }
 
     // ------------------------------------------------------------
-    // NARRATOR SECTION 7: SPEAKING THE DETAIL
-    // Wraps the game's own describeRoom. The detail is added to the
-    // end of the line the game speaks. Rooms with a fight waiting
-    // are left alone so combat sounds exactly as before.
+    // NARRATOR SECTION 7: THE NARRATOR'S OWN LINES
+    // Written by hand, in the narrator's voice. Add, change or
+    // delete lines freely. Keep each one short. {enemy} is swapped
+    // for the enemy's name. Room lines must not promise anything
+    // the game has not said (no loot, no monsters, no directions).
+    // ------------------------------------------------------------
+
+    var ROOM_LINES = {
+        entrance: [
+            'It smells of damp stone and questionable decisions. Mostly yours.',
+            'A cold draft welcomes you, which is more than anyone else down here will do.',
+            'Somewhere below, something drips. It has all day, and so, apparently, do you.'
+        ],
+        treasure: [
+            'It smells of dust and other people\'s poor planning in here.',
+            'The air is stale, as if nobody has breathed in here for years. Sensible of them.',
+            'Your footsteps echo a little too proudly for someone who just walked into a strange room.',
+            'It is quiet in here. The suspicious kind of quiet, not the restful kind.',
+            'Old wood creaks nearby, the way old wood does when it knows it has company.'
+        ],
+        fountain: [
+            'Water burbles away, sounding very pleased with itself.',
+            'A cool mist settles on your skin, whether you asked for it or not.',
+            'The splashing is almost soothing. Do not get used to it.'
+        ],
+        shrine: [
+            'Old incense hangs in the air, and the silence is frankly judging you.',
+            'The air hums faintly, like something holy clearing its throat.',
+            'It is very peaceful in here. Try not to ruin it.'
+        ],
+        merchant: [
+            'Somebody in here smells of lamp oil and optimistic pricing.',
+            'You hear coins clinking. They are not your coins yet, and may never be.',
+            'A kettle rattles somewhere close. At least one of you is having a nice day.'
+        ],
+        stairs: [
+            'A cold draft crawls up from below, which is the dungeon\'s way of saying it gets worse.',
+            'The air from below smells older and meaner. So that is something to enjoy later.',
+            'Your footsteps echo downward for a long time. A very long time.'
+        ],
+        empty: [
+            'It is quiet now, in the smug way rooms get after you win.',
+            'Nothing in here but dust and your own breathing. Thrilling.',
+            'The air is still, as if the room is hoping you will just leave.',
+            'Something drips with real commitment in here.',
+            'It smells like a wet sock that gave up.',
+            'Your footsteps echo back, sounding braver than you probably feel.',
+            'A draft wanders through, finds nothing of interest, and moves on. Take the hint.',
+            'The floor is gritty underfoot. Nobody has swept in a century, and it will not be you either.'
+        ]
+    };
+
+    var REMARKS = {
+        fightStart: {
+            chance: 0.6,
+            lines: [
+                'Try not to bleed on anything important.',
+                'I would wish you luck, but I have met you.',
+                'On the bright side, it has not eaten you yet.',
+                'I will be over here, narrating from a safe distance.',
+                'Remember, the pointy end goes in the {enemy}.',
+                'Deep breath. You have survived worse. Probably.',
+                'No pressure, but I have a bet riding on this.',
+                'It does not sound pleased about the company.'
+            ]
+        },
+        bossStart: {
+            chance: 1,
+            lines: [
+                'This is the big one. I believe in you, and I do not say that lightly, or often.',
+                'For once I have nothing clever to say. Do not die.'
+            ]
+        },
+        victory: {
+            chance: 0.7,
+            lines: [
+                'And the {enemy} learns a valuable lesson, a bit too late to use it.',
+                'Well, well. Surviving on purpose now.',
+                'I had my doubts. I still do, but well done.',
+                'The {enemy} would like a rematch. The {enemy} is not getting one.',
+                'Somebody has been practicing.',
+                'That was almost graceful. Almost.',
+                'I am putting that one in the memoir.',
+                'Not bad. I had already started drafting your farewell speech.'
+            ]
+        },
+        levelUp: {
+            chance: 1,
+            lines: [
+                'Stronger and wiser. Well, stronger.',
+                'The dungeon is officially a little worried.',
+                'Do try to stay humble. I certainly will not.',
+                'At this rate you might actually pull this off.',
+                'I would clap, but I am a voice.'
+            ]
+        },
+        chest: {
+            chance: 0.6,
+            lines: [
+                'Finders keepers. That is basically dungeon law.',
+                'Somebody left this unattended. Their mistake, your retirement fund.',
+                'Try to act like you have found nice things before.',
+                'I will not tell anyone you squealed a little.',
+                'Dibs on nothing, sadly. I have no hands.'
+            ]
+        },
+        death: {
+            chance: 1,
+            lines: [
+                'For the record, I thought this was a bad idea. Quietly. To myself.',
+                'We will call that a learning experience.',
+                'In fairness, you did very well right up until the end.',
+                'I will keep your seat warm. Come back and try again.'
+            ]
+        }
+    };
+
+    // Picks lines in a shuffled order, so nothing repeats until the whole list has been heard.
+    function pickFrom(list) {
+        if (!list || !list.length) return '';
+        if (!list.bag || !list.bag.length) {
+            list.bag = list.slice();
+            for (var i = list.bag.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var swap = list.bag[i]; list.bag[i] = list.bag[j]; list.bag[j] = swap;
+            }
+        }
+        return list.bag.pop();
+    }
+
+    function roomKind(room) {
+        if (room.type === 'treasure') return room.content === 'welcome_chest' ? 'entrance' : 'treasure';
+        if (room.type === 'special' && ROOM_LINES[room.content]) return room.content;
+        return 'empty';
+    }
+
+    function enemyName() {
+        var name = game.combat && game.combat.enemy && game.combat.enemy.name;
+        return name ? String(name).toLowerCase() : 'beast';
+    }
+
+    function remark(kind) {
+        var set = REMARKS[kind];
+        if (!narrator.enabled || !set || Math.random() >= set.chance) return '';
+        return pickFrom(set.lines).replace(/\{enemy\}/g, enemyName());
+    }
+
+    // ------------------------------------------------------------
+    // NARRATOR SECTION 8: SPEAKING ROOM LINES
+    // Wraps the game's own describeRoom and adds one line to the end
+    // of what the game says. The model's line is used if it is ready,
+    // otherwise a hand-written one. A room keeps its line once heard.
+    // Left alone: rooms with a fight waiting (see Section 9), spent
+    // fountains and shrines, and repeat looks at the same room.
     // ------------------------------------------------------------
 
     var originalDescribeRoom = describeRoom;
     window.describeRoom = function () {
         var room = game.currentRoom;
         var calm = !!room && room.type !== 'combat' && room.type !== 'boss';
-        var flavor = (narrator.enabled && calm && typeof room.flavor === 'string') ? room.flavor : '';
+        var spent = !!room && room.type === 'special' && room.used;
+        var flavor = '';
+        if (narrator.enabled && calm && !spent && room !== narrator.lastRoom) {
+            if (typeof room.flavor !== 'string' || !room.flavor) {
+                room.flavor = pickFrom(ROOM_LINES[roomKind(room)]);
+            }
+            flavor = room.flavor;
+        }
         var notice = calm ? narrator.pendingNotice : '';
         var realSpeak = speak;
 
@@ -430,12 +600,55 @@
             return originalDescribeRoom.apply(this, arguments);
         } finally {
             window.speak = realSpeak;
+            narrator.lastRoom = flavor ? room : null;
             queueNearbyRooms();
         }
     };
 
     // ------------------------------------------------------------
-    // NARRATOR SECTION 8: HELP TEXT
+    // NARRATOR SECTION 9: REMARKS ON WHAT HAPPENS
+    // Slips one hand-written remark into what the game already says
+    // when a fight starts, a fight is won, the hero levels up, a
+    // chest is opened, or the hero falls. Nothing else about those
+    // moments is changed.
+    // where: 'end' adds the remark last, a number puts it at that spot.
+    // ------------------------------------------------------------
+
+    function addRemarkTo(functionName, kind, where) {
+        var original = window[functionName];
+        if (typeof original !== 'function') return;
+        window[functionName] = function () {
+            if (!narrator.enabled) return original.apply(this, arguments);
+            var realSpeakSequence = speakSequence;
+            var used = false;
+            window.speakSequence = function (messages, callback) {
+                if (!used && messages && messages.length) {
+                    used = true;
+                    var line = remark(kind);
+                    if (line) {
+                        if (where === 'end') messages.push(line);
+                        else messages.splice(Math.min(where, messages.length), 0, line);
+                    }
+                }
+                return realSpeakSequence(messages, callback);
+            };
+            try {
+                return original.apply(this, arguments);
+            } finally {
+                window.speakSequence = realSpeakSequence;
+            }
+        };
+    }
+
+    addRemarkTo('startCombat', 'fightStart', 1);
+    addRemarkTo('startBossCombat', 'bossStart', 1);
+    addRemarkTo('combatVictory', 'victory', 'end');
+    addRemarkTo('levelUp', 'levelUp', 'end');
+    addRemarkTo('openChest', 'chest', 'end');
+    addRemarkTo('playerDeath', 'death', 1);
+
+    // ------------------------------------------------------------
+    // NARRATOR SECTION 10: HELP TEXT
     // Adds one line to the spoken help list.
     // ------------------------------------------------------------
 
@@ -448,7 +661,7 @@
                 if (!lineAdded && messages && messages.length) {
                     lineAdded = true;
                     messages.push(
-                        'Narrator: narrator on, narrator off, narrator status. The narrator is an optional storyteller that runs on your own device.');
+                        'Narrator: narrator on, narrator off, narrator status. The narrator is an optional storyteller with opinions, and runs on your own device.');
                 }
                 return realSpeakSequence(messages, callback);
             };
