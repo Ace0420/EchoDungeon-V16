@@ -61,23 +61,26 @@
         function buyFromMerchant(command) {
             let itemToBuy = null;
             
+            // Pick the LONGEST item name that was said. "Greater Health Potion"
+            // contains the words "Health Potion", so taking the first match
+            // always sold the small potion instead of the one asked for.
             for (let item of merchantItems) {
                 if (command.includes(item.name.toLowerCase())) {
-                    if (item.minLevel && game.dungeon.currentLevel < item.minLevel) {
-                        speak(`${item.name} requires dungeon level ${item.minLevel}. Come back later.`);
-                        return;
-                    }
                     if (item.type === 'weapon' || item.type === 'armor' || item.type === 'helmet' || 
                         item.type === 'gloves' || item.type === 'boots' || item.type === 'shield' || item.type === 'bracelet') {
-                        if (item.class === game.player.class || !item.class) {
-                            itemToBuy = item;
-                            break;
+                        if (item.class !== game.player.class && item.class) {
+                            continue;
                         }
-                    } else {
+                    }
+                    if (!itemToBuy || item.name.length > itemToBuy.name.length) {
                         itemToBuy = item;
-                        break;
                     }
                 }
+            }
+
+            if (itemToBuy && itemToBuy.minLevel && game.dungeon.currentLevel < itemToBuy.minLevel) {
+                speak(`${itemToBuy.name} requires dungeon level ${itemToBuy.minLevel}. Come back later.`);
+                return;
             }
 
             if (!itemToBuy) {
