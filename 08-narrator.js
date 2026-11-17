@@ -46,7 +46,7 @@
         engineUrl: WLLAMA_BASE + 'index.js',
         wasmSingle: WLLAMA_BASE + 'single-thread/wllama.wasm',
         wasmMulti: WLLAMA_BASE + 'multi-thread/wllama.wasm',
-        contextSize: 1024,
+        contextSize: 2048,
         maxTokens: 48,
         triesPerRoom: 3,
         storageKey: 'echoDungeon_narrator'
@@ -402,6 +402,10 @@
         }).catch(function (err) {
             room.flavorTried = (room.flavorTried || 0) + 1;
             narrator.lastError = String((err && err.message) || err);
+            // If the model's working memory filled up, empty it so the next room starts clean.
+            if (engineAtStart && typeof engineAtStart.kvClear === 'function') {
+                return engineAtStart.kvClear().catch(function () {});
+            }
         }).then(function () {
             if (narrator.engine !== engineAtStart) return;   // narrator was turned off meanwhile
             narrator.busy = false;
