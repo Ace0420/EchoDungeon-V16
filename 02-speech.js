@@ -166,7 +166,7 @@
             
             // Gender selection with flexible recognition
             if (game.needsGender) {
-                if (cmd.includes('male') || cmd.includes('dude') && !cmd.includes('female')) {
+                if ((cmd.includes('male') || cmd.includes('dude')) && !cmd.includes('female')) {
                     game.player.gender = 'male';
                     game.needsGender = false;
                     game.needsRace = true;
