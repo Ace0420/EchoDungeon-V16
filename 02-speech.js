@@ -227,7 +227,8 @@
                         'Mage: Master of magic with powerful spells.',
                         'Rogue: Agile and cunning with special abilities.'
                     ]);
-                } else if (cmd.includes('orc')) {
+                } else if (/\b(orc|orcs|ork|orks|orca|org|or|ore|oar|arc|ark|oak|work|fork|pork)\b/.test(cmd)) {
+                    // The microphone rarely hears "orc" correctly, so accept what it tends to hear instead.
                     game.player.race = 'orc';
                     game.needsRace = false;
                     game.needsClass = true;
@@ -280,6 +281,10 @@
                     buyFromMerchant(cmd);
                 } else if (cmd.includes('what') || cmd.includes('wares') || cmd.includes('stock')) {
                     listMerchantWares();
+                } else if (merchantItems.some(item => cmd.includes(item.name.toLowerCase()))) {
+                    // The microphone often hears "buy" as "by" or "bye".
+                    // In the shop, naming an item is enough to buy it.
+                    buyFromMerchant(cmd);
                 } else {
                     speak('Say buy, what do you have, or leave.');
                 }
