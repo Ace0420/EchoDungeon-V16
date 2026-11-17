@@ -96,6 +96,37 @@
         // SPEECH RECOGNITION - V10.5 Pattern (Create fresh each time)
         // ============================================================
 
+        // ============================================================
+        // LISTENING CHIRP
+        // ============================================================
+
+        // A short chirp so the player knows when the microphone opens and closes.
+        // 'start' rises, 'stop' falls. Made in the browser, no sound file needed.
+        let chirpContext = null;
+        function chirp(kind) {
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+                if (!chirpContext) chirpContext = new AudioContextClass();
+                if (chirpContext.state === 'suspended') chirpContext.resume();
+                const now = chirpContext.currentTime;
+                const tone = chirpContext.createOscillator();
+                const volume = chirpContext.createGain();
+                tone.type = 'sine';
+                tone.frequency.setValueAtTime(kind === 'start' ? 660 : 880, now);
+                tone.frequency.exponentialRampToValueAtTime(kind === 'start' ? 990 : 520, now + 0.12);
+                volume.gain.setValueAtTime(0.0001, now);
+                volume.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+                volume.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+                tone.connect(volume);
+                volume.connect(chirpContext.destination);
+                tone.start(now);
+                tone.stop(now + 0.16);
+            } catch (e) {
+                // A missing chirp must never stop the game.
+            }
+        }
+
         function startListening() {
             if (!browserSupport.speechRecognition || !browserSupport.https) {
                 speak('Voice recognition requires HTTPS and a compatible browser like Chrome or Edge.');
@@ -136,6 +167,7 @@
                     stopListening();
                 };
                 
+                chirp('start');
                 recognition.start();
                 
             } catch (e) {
@@ -147,6 +179,7 @@
         }
 
         function stopListening() {
+            if (game.listening) chirp('stop');
             game.listening = false;
             micButton.classList.remove('listening');
             if (recognition) {

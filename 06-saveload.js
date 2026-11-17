@@ -526,14 +526,10 @@
 
         // ============================================================
         // STOP LISTENING
+        // A second copy of stopListening used to live here. Because this
+        // file loads later, it silently replaced the fuller one in
+        // 02-speech.js. It was removed so there is only one.
         // ============================================================
-        
-        function stopListening() {
-            if (recognition && game.listening) {
-                recognition.stop();
-                game.listening = false;
-            }
-        }
 
         // ============================================================
         // EQUIP WEAPON OR ARMOR (Helper)
